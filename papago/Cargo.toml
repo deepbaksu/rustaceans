@@ -1,0 +1,11 @@
+[package]
+name = "papago"
+version = "0.2.0"
+authors = ["Mo Kweon <kkweon@gmail.com>"]
+edition = "2018"
+description = "Papago API wrapper"
+license = "GPL"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
