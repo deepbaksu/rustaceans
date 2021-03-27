@@ -4,6 +4,8 @@ mod convert;
 mod parser;
 mod unit;
 
+/// Entry function of this library.
+///
 /// Example
 ///
 /// ```
