@@ -1,3 +1,4 @@
+use crate::common::UniversalError;
 use lazy_static::lazy_static;
 use regex::Regex;
 
@@ -13,64 +14,47 @@ pub enum Unit {
     TimeZoneOnly(chrono_tz::Tz),
 }
 
-#[derive(Debug)]
-pub struct UnitParseError {
-    pub reason: String,
-}
-
-impl UnitParseError {
-    pub(crate) fn new(reason: String) -> UnitParseError {
-        Self { reason }
-    }
-}
-
-impl From<chrono::ParseError> for UnitParseError {
-    fn from(chrono_error: chrono::ParseError) -> Self {
-        Self {
-            reason: chrono_error.to_string(),
-        }
-    }
-}
-
 impl Unit {
-    pub fn parse(text: &str) -> Result<Self, UnitParseError> {
+    pub fn parse(text: &str) -> Result<Self, UniversalError> {
         if YMD_REGEX.is_match(text) {
-            let mut split = text.split(' ');
-            let naive_datetime = split
-                .next()
-                .ok_or_else(|| {
-                    UnitParseError::new(
-                        "%Y-%m-%d TIMEZONE is expected but received none".to_owned(),
-                    )
-                })
-                .and_then(|text| {
-                    chrono::NaiveDate::parse_from_str(text, "%Y-%m-%d")
-                        .map(|d| d.and_hms(0, 0, 0))
-                        .map_err(|err| {
-                            UnitParseError::new(format!(
-                                "failed to parse into NativeDateTime. see {}",
-                                err.to_string()
-                            ))
-                        })
-                })?;
-            let timezone = split
-                .next()
-                .ok_or_else(|| {
-                    UnitParseError::new(
-                        "%Y-%m-%d TIMEZONE is expected but TIMEZONE was not found".to_string(),
-                    )
-                })
-                .and_then(get_timezone)?;
+            let split: Vec<&str> = text.split(' ').collect();
+            if split.len() == 2 {
+                let datetime_portion = split[0];
+                let datetime_format = "%Y-%m-%d";
+                let timezone = get_timezone(split[1])?;
+                let is_datetime = false;
 
-            return Ok(Unit::DateTimeWithTimeZone(DateTimeWithTimeZone {
-                datetime: naive_datetime,
-                timezone,
-            }));
+                return DateTimeWithTimeZone::parse(
+                    &datetime_portion,
+                    &datetime_format,
+                    is_datetime,
+                    timezone,
+                )
+                .map(Unit::DateTimeWithTimeZone);
+            } else if split.len() == 3 {
+                let datetime_portion = format!("{} {}", split[0], split[1]);
+                let datetime_format = "%Y-%m-%d %H:%M:%S";
+                let timezone = get_timezone(split[2])?;
+                let is_datetime = true;
+
+                return DateTimeWithTimeZone::parse(
+                    &datetime_portion,
+                    &datetime_format,
+                    is_datetime,
+                    timezone,
+                )
+                .map(Unit::DateTimeWithTimeZone);
+            } else {
+                return Err(UniversalError::ParseError(format!(
+                    "%Y-%m-%d (timezone) is expected but received {}",
+                    text
+                )));
+            }
         } else if let Ok(tz) = get_timezone(text) {
             return Ok(Unit::TimeZoneOnly(tz));
         }
 
-        Err(UnitParseError::new(
+        Err(UniversalError::ParseError(
             "unable to match any patterns".to_owned(),
         ))
     }
@@ -82,12 +66,39 @@ pub struct DateTimeWithTimeZone {
     pub timezone: chrono_tz::Tz,
 }
 
-fn get_timezone(text: &str) -> Result<chrono_tz::Tz, UnitParseError> {
+impl DateTimeWithTimeZone {
+    fn parse(
+        text: &str,
+        format_str: &str,
+        has_time: bool,
+        timezone: chrono_tz::Tz,
+    ) -> Result<Self, UniversalError> {
+        let naive_datetime = match has_time {
+            true => chrono::NaiveDateTime::parse_from_str(text, format_str),
+            false => {
+                chrono::NaiveDate::parse_from_str(text, format_str).map(|d| d.and_hms(0, 0, 0))
+            }
+        }
+        .map_err(|err| {
+            UniversalError::ParseError(format!(
+                "failed to parse into NativeDateTime. see {}",
+                err.to_string()
+            ))
+        })?;
+
+        Ok(Self {
+            datetime: naive_datetime,
+            timezone,
+        })
+    }
+}
+
+fn get_timezone(text: &str) -> Result<chrono_tz::Tz, UniversalError> {
     match text {
         "KST" => Ok(chrono_tz::Asia::Seoul),
         "PST" => Ok(chrono_tz::US::Pacific),
         "PDT" => Ok(chrono_tz::US::Pacific),
-        _ => Err(UnitParseError::new(format!(
+        _ => Err(UniversalError::ParseError(format!(
             "{} is not a recognized timezone",
             text
         ))),

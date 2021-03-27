@@ -2,10 +2,11 @@ pub(crate) mod types;
 
 #[cfg(test)]
 mod tests {
-    use crate::unit::types::{Unit, UnitParseError};
+    use crate::common::UniversalError;
+    use crate::unit::types::Unit;
 
     #[test]
-    pub fn test_parse_datetime() -> Result<(), UnitParseError> {
+    pub fn test_parse_datetime() -> Result<(), UniversalError> {
         let unit = Unit::parse("2021-01-01 KST")?;
         match unit {
             Unit::DateTimeWithTimeZone(dt) => {
@@ -22,7 +23,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_parse_timezone_only() -> Result<(), UnitParseError> {
+    pub fn test_parse_timezone_only() -> Result<(), UniversalError> {
         let unit = Unit::parse("KST")?;
         match unit {
             Unit::TimeZoneOnly(tz) => assert_eq!(tz, chrono_tz::Asia::Seoul),
