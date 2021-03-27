@@ -17,39 +17,7 @@ pub enum Unit {
 impl Unit {
     pub fn parse(text: &str) -> Result<Self, UniversalError> {
         if YMD_REGEX.is_match(text) {
-            let split: Vec<&str> = text.split(' ').collect();
-            if split.len() == 2 {
-                let datetime_portion = split[0];
-                let datetime_format = "%Y-%m-%d";
-                let timezone = get_timezone(split[1])?;
-                let is_datetime = false;
-
-                return DateTimeWithTimeZone::parse(
-                    &datetime_portion,
-                    &datetime_format,
-                    is_datetime,
-                    timezone,
-                )
-                .map(Unit::DateTimeWithTimeZone);
-            } else if split.len() == 3 {
-                let datetime_portion = format!("{} {}", split[0], split[1]);
-                let datetime_format = "%Y-%m-%d %H:%M:%S";
-                let timezone = get_timezone(split[2])?;
-                let is_datetime = true;
-
-                return DateTimeWithTimeZone::parse(
-                    &datetime_portion,
-                    &datetime_format,
-                    is_datetime,
-                    timezone,
-                )
-                .map(Unit::DateTimeWithTimeZone);
-            } else {
-                return Err(UniversalError::ParseError(format!(
-                    "%Y-%m-%d (timezone) is expected but received {}",
-                    text
-                )));
-            }
+            return Unit::parse_datetime(text);
         } else if let Ok(tz) = get_timezone(text) {
             return Ok(Unit::TimeZoneOnly(tz));
         }
@@ -57,6 +25,47 @@ impl Unit {
         Err(UniversalError::ParseError(
             "unable to match any patterns".to_owned(),
         ))
+    }
+
+    fn parse_datetime(text: &str) -> Result<Self, UniversalError> {
+        let split: Vec<&str> = text.split(' ').collect();
+
+        match split.len() {
+            2 => {
+                let datetime_portion = split[0];
+                let datetime_format = "%Y-%m-%d";
+                let timezone = get_timezone(split[1])?;
+                let is_datetime = false;
+
+                DateTimeWithTimeZone::parse(
+                    &datetime_portion,
+                    &datetime_format,
+                    is_datetime,
+                    timezone,
+                )
+                .map(Unit::DateTimeWithTimeZone)
+            }
+
+            3 => {
+                let datetime_portion = format!("{} {}", split[0], split[1]);
+                let datetime_format = "%Y-%m-%d %H:%M:%S";
+                let timezone = get_timezone(split[2])?;
+                let is_datetime = true;
+
+                DateTimeWithTimeZone::parse(
+                    &datetime_portion,
+                    &datetime_format,
+                    is_datetime,
+                    timezone,
+                )
+                .map(Unit::DateTimeWithTimeZone)
+            }
+
+            _ => Err(UniversalError::ParseError(format!(
+                "%Y-%m-%d (timezone) is expected but received {}",
+                text
+            ))),
+        }
     }
 }
 
